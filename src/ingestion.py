@@ -76,6 +76,13 @@ def generate_raw_cer_dataset(
     return df_raw
 
 
+def load_raw_data(filepath: str) -> pd.DataFrame:
+    """Reads a raw CER CSV dataset (canonical meter_id/timestamp/kwh schema)
+    and converts timestamp columns to datetime objects."""
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(
+            f"File not found at {filepath}. Run generate_raw_cer_dataset() first!"
+        )
 
     print(f"Reading raw data from: {filepath}...")
     df = pd.read_csv(filepath)
@@ -87,7 +94,15 @@ INTERVALS_PER_DAY = 48
 
 
 def decode_cer_timecode(timecode: int, epoch_date: date = CER_TRIAL_EPOCH_DATE) -> datetime:
-    
+    """
+    Decodes the CER trial's 5-digit day+halfhour timecode into a real
+    datetime. Format: first 3 digits = day code (day 1 = epoch_date,
+    counting sequentially), last 2 digits = half-hour code (1-48, where
+    1 = 00:00-00:30, 48 = 23:30-00:00).
+
+    Example: timecode 19501 -> day code 195, halfhour code 01
+             -> epoch_date + 194 days, at 00:00.
+    """
     timecode = int(timecode)
     day_code = timecode // 100
     halfhour_code = timecode % 100
@@ -105,7 +120,34 @@ def decode_cer_timecode(timecode: int, epoch_date: date = CER_TRIAL_EPOCH_DATE) 
     return datetime.combine(interval_date, datetime.min.time()) + interval_time
 
 
+def load_cer_meter_reads(
+    filepaths,
+    epoch_date: date = CER_TRIAL_EPOCH_DATE,
+    delimiter: str = None,
+) -> pd.DataFrame:
+    """
+    Loads one or more raw CER meter-read files (unlabeled, positional
+    columns: meter_id, timecode, kwh) and decodes them into the canonical
+    meter_id/timestamp/kwh schema. Accepts a glob pattern or an explicit
+    list of file paths, since the real dataset ships split across
+    multiple files.
 
+    delimiter=None lets pandas auto-detect between whitespace/comma/tab -
+    override explicitly once you know the real files' actual delimiter.
+    """
+    if isinstance(filepaths, str):
+        filepaths = sorted(glob.glob(filepaths))
+    if not filepaths:
+        raise FileNotFoundError("No CER meter-read files matched the given path/pattern.")
+
+    frames = []
+    for fp in filepaths:
+        print(f"Reading real CER meter-read file: {fp}...")
+        df = pd.read_csv(
+            fp, header=None, names=["meter_id", "timecode", "kwh"],
+            sep=delimiter, engine="python" if delimiter is None else "c",
+        )
+        frames.append(df)
 
     combined = pd.concat(frames, ignore_index=True)
     print(f"   Decoding {len(combined):,} timecodes...")
@@ -206,11 +248,28 @@ def load_real_cer_dataset(
     min_completeness: float = 0.95,
     output_filepath: str = None,
 ) -> pd.DataFrame:
-  
+    """
+    Top-level orchestrator - drop-in replacement for
+    generate_raw_cer_dataset() once real ISSDA files are available.
+    Returns the same canonical meter_id/timestamp/kwh schema, so nothing
+    downstream (features.py etc) needs to change.
+
+    Usage once you have real files:
+        df_raw = load_real_cer_dataset(
+            meter_read_filepaths="data/raw/cer_real/File*.txt",
+            allocation_filepath="data/raw/cer_real/allocations.csv",
+        )
+    """
     df = load_cer_meter_reads(meter_read_filepaths, epoch_date=epoch_date)
     df = clean_cer_data(df, min_completeness=min_completeness)
 
-   
+    if allocation_filepath:
+        allocations = load_cer_allocations(allocation_filepath)
+        before = len(df)
+        df = df.merge(allocations, on="meter_id", how="left")
+        unmatched = df["segment_code"].isna().sum()
+        if unmatched > 0:
+            print(f" {unmatched} rows have no matching allocation record (meter_id not found in allocation file).")
 
     if output_filepath:
         os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
