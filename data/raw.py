@@ -29,7 +29,22 @@ def generate_raw_cer_dataset(
             hour = ts.hour + ts.minute / 60.0
             day_of_week = ts.dayofweek
 
-          # Add noise and ensure non-negative consumption
+            # Generate realistic load patterns based on profile archetype
+            if profile_type == 0:  # Residential (Morning & Evening peaks)
+                m_peak = np.exp(-((hour - 8) ** 2) / 4)
+                e_peak = np.exp(-((hour - 19) ** 2) / 8)
+                kwh = 0.2 + 0.8 * m_peak + 1.2 * e_peak
+            elif profile_type == 1:  # Night/EV Heavy (Overnight peak)
+                n_peak = np.exp(-((hour - 2) ** 2) / 4)
+                e_peak = np.exp(-((hour - 19) ** 2) / 8)
+                kwh = 0.15 + 1.8 * n_peak + 0.7 * e_peak
+            else:  # Commercial (Weekday daytime heavy)
+                if day_of_week < 5 and 8 <= hour <= 18:
+                    kwh = 2.5 + np.random.normal(0, 0.2)
+                else:
+                    kwh = 0.3
+
+            # Add noise and ensure non-negative consumption
             kwh = max(0.01, kwh + np.random.normal(0, 0.05))
 
             records.append(
