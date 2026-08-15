@@ -3,6 +3,17 @@ import joblib
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
+from sklearn.preprocessing import StandardScaler
+
+# Features used to cluster customers into load-profile archetypes.
+# Must match the columns produced by src/features.py's extract_load_features().
+CLUSTER_FEATURE_COLS = [
+    "mean_kwh",
+    "load_factor",
+    "night_ratio",
+    "morn_peak_ratio",
+    "eve_peak_ratio",
+]
 
 
 def train_customer_clusters(
@@ -12,12 +23,10 @@ def train_customer_clusters(
     random_state: int = 42,
 ) -> tuple[pd.DataFrame, KMeans, StandardScaler]:
     """Scales load features, clusters customers into load profile archetypes using K-Means,
-
     and saves trained artifacts to disk.
     """
     df = feature_df.copy()
-
-    X = df[cluster_cols]
+    X = df[CLUSTER_FEATURE_COLS]
 
     # Normalize features so large scales don't dominate distance metrics
     scaler = StandardScaler()
@@ -27,6 +36,8 @@ def train_customer_clusters(
     kmeans = KMeans(n_clusters=n_clusters, random_state=random_state, n_init=10)
     df["cluster"] = kmeans.fit_predict(X_scaled)
 
+    # Evaluate cluster separation quality
+    sil_score = silhouette_score(X_scaled, df["cluster"])
     df["silhouette_score"] = round(float(sil_score), 4)
 
     # Save model artifacts for production reuse in app.py
