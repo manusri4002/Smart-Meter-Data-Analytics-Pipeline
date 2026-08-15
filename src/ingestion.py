@@ -219,12 +219,17 @@ def clean_cer_data(
         print (f"Clipped {n_negative} negative kwh readings to 0 (data errors, not real consumption).")
         df.loc[df["kwh"] < 0, "kwh"] = 0.0
 
-    # 4. Completeness check per meter: drop meters with too many missing
-    # intervals to trust their aggregated features.
-    span_days = (df["timestamp"].max() - df["timestamp"].min()).days + 1
-    expected_readings = span_days * expected_intervals_per_day
+    # 4. Completeness check, computed PER METER (not globally) - each meter
+    # is judged against its own observed date span, since different meters
+    # can have different install/removal dates in real trial data. Using a
+    # single dataset-wide span here would unfairly penalize a meter that is
+    # 100% complete over its own shorter window.
+    per_meter_span_days = df.groupby("meter_id")["timestamp"].agg(
+        lambda s: (s.max() - s.min()).days + 1
+    )
+    expected_per_meter = per_meter_span_days * expected_intervals_per_day
     counts = df.groupby("meter_id").size()
-    completeness = counts / expected_readings
+    completeness = counts / expected_per_meter
     incomplete_meters = completeness[completeness < min_completeness].index.tolist()
 
     if incomplete_meters:
@@ -277,3 +282,4 @@ def load_real_cer_dataset(
         print(f"Real CER dataset processed and saved: {output_filepath}")
 
     return df
+    
