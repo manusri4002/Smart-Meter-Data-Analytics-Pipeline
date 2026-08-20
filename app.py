@@ -237,4 +237,3 @@ with tab3:
         title=f"Historical Consumption Profile — Meter #{meter_choice}",
     )
     st.plotly_chart(fig_single, use_container_width=True)
-
