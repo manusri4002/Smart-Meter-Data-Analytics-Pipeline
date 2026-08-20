@@ -112,3 +112,4 @@ if __name__ == "__main__":
         force_regenerate=args.force_regenerate,
         inject_tamper_events=args.inject_tamper_events,
     )
+
