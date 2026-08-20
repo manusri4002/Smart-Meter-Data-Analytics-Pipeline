@@ -9,7 +9,7 @@ from src.ingestion import DEFAULT_TAMPERED_METER_IDS as TAMPERED_DEMO_METER_IDS
 # Page Configuration
 st.set_page_config(
     page_title="Smart Meter Analytics Dashboard",
-    page_icon="⚡",
+    page_icon=" ",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -32,8 +32,6 @@ except FileNotFoundError:
     )
     st.stop()
 
-# Staleness guard: if the CSV on disk predates the current pipeline code,
-# fail with one clear message instead of a raw KeyError deep in the page.
 REQUIRED_ANALYTICS_COLS = ["silhouette_score", "is_anomaly", "cluster", "mean_kwh"]
 missing_cols = [c for c in REQUIRED_ANALYTICS_COLS if c not in analytics_df.columns]
 if missing_cols:
@@ -101,9 +99,6 @@ if show_anomalies_only:
 st.title("Smart Meter Data Analytics Dashboard")
 st.caption("End-to-End Grid Quality & Customer Load Profiling System")
 
-# If the currently-loaded data includes the known demo tamper IDs, show a
-# banner confirming whether they were actually caught - makes the "before
-# vs after" story visible right on the main page, not just in the sidebar.
 if set(TAMPERED_DEMO_METER_IDS).issubset(set(analytics_df["meter_id"])):
     demo_rows = analytics_df[analytics_df["meter_id"].isin(TAMPERED_DEMO_METER_IDS)]
     if demo_rows["is_anomaly"].all():
