@@ -82,4 +82,3 @@ def extract_load_features(df_raw: pd.DataFrame) -> pd.DataFrame:
         f"Extracted load profile features for {len(df_features)} unique meters."
     )
     return df_features
-
