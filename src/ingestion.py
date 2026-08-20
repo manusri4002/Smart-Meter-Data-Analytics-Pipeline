@@ -4,6 +4,12 @@ from datetime import date, datetime, timedelta
 import numpy as np
 import pandas as pd
 
+TAMPER_METER_ID_START = 1000
+DEFAULT_N_TAMPER_EVENTS = 2
+DEFAULT_TAMPERED_METER_IDS = list(
+    range(TAMPER_METER_ID_START, TAMPER_METER_ID_START + DEFAULT_N_TAMPER_EVENTS)
+)
+
 
 def generate_raw_cer_dataset(
     output_filepath: str = "data/raw/cer_raw_data.csv",
@@ -11,7 +17,7 @@ def generate_raw_cer_dataset(
     days: int = 14,
     seed: int = 42,
     inject_tamper_events: bool = False,
-    n_tamper_events: int = 2,
+    n_tamper_events: int = DEFAULT_N_TAMPER_EVENTS,
 ) -> pd.DataFrame:
     """Generates synthetic smart meter data matching the exact schema and half-hourly
 
@@ -31,7 +37,11 @@ def generate_raw_cer_dataset(
         start="2026-01-01", periods=n_intervals, freq="30min"
     )
 
-    tampered_meter_ids = set(range(1000, 1000 + n_tamper_events)) if inject_tamper_events else set()
+    tampered_meter_ids = (
+        set(range(TAMPER_METER_ID_START, TAMPER_METER_ID_START + n_tamper_events))
+        if inject_tamper_events
+        else set()
+    )
     midpoint_ts = timestamps[len(timestamps) // 2]
 
     records = []
@@ -70,7 +80,9 @@ def generate_raw_cer_dataset(
     if inject_tamper_events:
         print(f"Injected simulated tamper events (mid-window drop to near-zero) into meter IDs: {sorted(tampered_meter_ids)}")
 
-    os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
+    out_dir = os.path.dirname(output_filepath)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
     df_raw.to_csv(output_filepath, index=False)
     print(f"Raw dataset created successfully: {output_filepath}")
     return df_raw
@@ -131,9 +143,6 @@ def load_cer_meter_reads(
     meter_id/timestamp/kwh schema. Accepts a glob pattern or an explicit
     list of file paths, since the real dataset ships split across
     multiple files.
-
-    delimiter=None lets pandas auto-detect between whitespace/comma/tab -
-    override explicitly once you know the real files' actual delimiter.
     """
     if isinstance(filepaths, str):
         filepaths = sorted(glob.glob(filepaths))
@@ -155,15 +164,8 @@ def load_cer_meter_reads(
     combined = combined[["meter_id", "timestamp", "kwh"]]
     return combined
 
-
 def load_cer_allocations(filepath: str) -> pd.DataFrame:
-    """
-    Loads the CER allocation file mapping each meter_id to a Residential/
-    SME segment (and tariff/stimulus group, if present). Column names in
-    the real file aren't confirmed without the actual codebook, so this
-    tries several common naming conventions and fails with the ACTUAL
-    columns found if none match, rather than silently misreading the file.
-    """
+
     df = pd.read_csv(filepath)
 
     id_col = next((c for c in df.columns if c.strip().lower() in ("id", "meter_id", "meterid")), None)
@@ -188,15 +190,7 @@ def clean_cer_data(
     expected_intervals_per_day: int = INTERVALS_PER_DAY,
     min_completeness: float = 0.95,
 ) -> pd.DataFrame:
-    """
-    Data-quality pass for real (messy) smart-meter data. Deliberately
-    narrow in scope: only removes things that are DEFINITELY errors
-    (duplicate readings, physically-impossible negative consumption,
-    meters with too many missing intervals to trust). Does NOT clip large
-    positive spikes or otherwise smooth statistical outliers - that's
-    anomaly.py's job, and pre-cleaning outliers here would quietly defeat
-    the anomaly detector before it ever sees the data.
-    """
+   
     df = df.copy()
     n_before = len(df)
 
@@ -216,14 +210,12 @@ def clean_cer_data(
     # 3. Physically-impossible negative consumption -> clip to 0, report count.
     n_negative = int((df["kwh"] < 0).sum())
     if n_negative > 0:
-        print (f"Clipped {n_negative} negative kwh readings to 0 (data errors, not real consumption).")
+        print(f"Clipped {n_negative} negative kwh readings to 0 (data errors, not real consumption).")
         df.loc[df["kwh"] < 0, "kwh"] = 0.0
 
     # 4. Completeness check, computed PER METER (not globally) - each meter
     # is judged against its own observed date span, since different meters
-    # can have different install/removal dates in real trial data. Using a
-    # single dataset-wide span here would unfairly penalize a meter that is
-    # 100% complete over its own shorter window.
+    # can have different install/removal dates in real trial data. 
     per_meter_span_days = df.groupby("meter_id")["timestamp"].agg(
         lambda s: (s.max() - s.min()).days + 1
     )
@@ -253,18 +245,7 @@ def load_real_cer_dataset(
     min_completeness: float = 0.95,
     output_filepath: str = None,
 ) -> pd.DataFrame:
-    """
-    Top-level orchestrator - drop-in replacement for
-    generate_raw_cer_dataset() once real ISSDA files are available.
-    Returns the same canonical meter_id/timestamp/kwh schema, so nothing
-    downstream (features.py etc) needs to change.
-
-    Usage once you have real files:
-        df_raw = load_real_cer_dataset(
-            meter_read_filepaths="data/raw/cer_real/File*.txt",
-            allocation_filepath="data/raw/cer_real/allocations.csv",
-        )
-    """
+    
     df = load_cer_meter_reads(meter_read_filepaths, epoch_date=epoch_date)
     df = clean_cer_data(df, min_completeness=min_completeness)
 
@@ -277,9 +258,10 @@ def load_real_cer_dataset(
             print(f" {unmatched} rows have no matching allocation record (meter_id not found in allocation file).")
 
     if output_filepath:
-        os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
+        out_dir = os.path.dirname(output_filepath)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
         df.to_csv(output_filepath, index=False)
         print(f"Real CER dataset processed and saved: {output_filepath}")
 
     return df
-    
