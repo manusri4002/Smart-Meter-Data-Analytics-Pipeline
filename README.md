@@ -1,4 +1,4 @@
-#Smart Meter Data Analytics Pipeline
+# Smart Meter Data Analytics Pipeline
 
 A **Python pipeline for smart-meter data ingestion, load-profile feature engineering, customer segmentation, and non-technical-loss / anomaly detection**, modeled on the Irish CER Smart Metering Trial, with an interactive Streamlit dashboard for exploring the results.
 
