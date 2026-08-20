@@ -71,7 +71,9 @@ def run_pipeline(
     df_final, _ = detect_meter_anomalies(df_segmented, contamination=contamination)
 
     # Save final results
-    os.makedirs(os.path.dirname(processed_output_path), exist_ok=True)
+    out_dir = os.path.dirname(processed_output_path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
     df_final.to_csv(processed_output_path, index=False)
 
     print("\n" + "=" * 60)
