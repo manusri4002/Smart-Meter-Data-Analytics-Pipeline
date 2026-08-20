@@ -1,4 +1,4 @@
-# Meter Data Analytics Pipeline
+#Smart Meter Data Analytics Pipeline
 
 A **Python pipeline for smart-meter data ingestion, load-profile feature engineering, customer segmentation, and non-technical-loss / anomaly detection**, modeled on the Irish CER Smart Metering Trial, with an interactive Streamlit dashboard for exploring the results.
 
@@ -27,7 +27,9 @@ It combines four stages into one pipeline:
 
 ---
 ## Video
+**Smart Meter Analytics Dashboard** load-profile clustering (K-Means), anomaly/theft flagging (Isolation Forest), and the injected-tamper-event validation demo:
 
+![Smart Meter Dashboard demo](assets/Dashboard.gif)
 ```
 ```
 ## Project Structure
