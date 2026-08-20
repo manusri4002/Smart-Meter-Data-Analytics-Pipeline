@@ -11,3 +11,4 @@ feature_df.to_csv("data/processed/cer_features.csv", index=False)
 
 print("\nExtracted Features Sample:")
 print(feature_df[["meter_id", "mean_kwh", "load_factor", "night_ratio", "eve_peak_ratio"]].head())
+
