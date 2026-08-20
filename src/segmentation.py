@@ -46,4 +46,3 @@ def train_customer_clusters(
     print(f"Models saved to directory: '{model_dir}/'")
 
     return df, kmeans, scaler
-
