@@ -26,8 +26,12 @@ data/raw/*.csv
 data/processed/*.csv
 
 # Saved model artifacts (regenerable via `python main.py`)
-model/*.pkl
-model/*.joblib
+# NOTE: segmentation.py / anomaly.py both default model_dir="models" (plural).
+# This previously said "model/*.pkl" / "model/*.joblib" (singular), which
+# never matched the actual output directory, so trained .joblib files were
+# NOT being ignored.
+models/*.pkl
+models/*.joblib
 
 # Logs
 *.log
