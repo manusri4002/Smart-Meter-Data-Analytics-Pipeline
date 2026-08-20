@@ -19,18 +19,7 @@ def generate_raw_cer_dataset(
     inject_tamper_events: bool = False,
     n_tamper_events: int = DEFAULT_N_TAMPER_EVENTS,
 ) -> pd.DataFrame:
-    """Generates synthetic smart meter data matching the exact schema and half-hourly
 
-    interval structure of the Irish CER Smart Metering trial.
-
-    inject_tamper_events: if True, the first `n_tamper_events` generated
-    meter IDs have their consumption drop to near-zero for the SECOND HALF
-    of the observation window, simulating a bypass/tamper event partway
-    through - a known ground truth for validating that the anomaly
-    detection pipeline's temporal features (half_period_ratio,
-    daily_consumption_std in features.py) actually catch a mid-window
-    behavior change.
-    """
     np.random.seed(seed)
     n_intervals = days * 48  # 48 half-hour intervals per day
     timestamps = pd.date_range(
@@ -164,8 +153,15 @@ def load_cer_meter_reads(
     combined = combined[["meter_id", "timestamp", "kwh"]]
     return combined
 
-def load_cer_allocations(filepath: str) -> pd.DataFrame:
 
+def load_cer_allocations(filepath: str) -> pd.DataFrame:
+    """
+    Loads the CER allocation file mapping each meter_id to a Residential/
+    SME segment (and tariff/stimulus group, if present). Column names in
+    the real file aren't confirmed without the actual codebook, so this
+    tries several common naming conventions and fails with the ACTUAL
+    columns found if none match, rather than silently misreading the file.
+    """
     df = pd.read_csv(filepath)
 
     id_col = next((c for c in df.columns if c.strip().lower() in ("id", "meter_id", "meterid")), None)
@@ -215,7 +211,9 @@ def clean_cer_data(
 
     # 4. Completeness check, computed PER METER (not globally) - each meter
     # is judged against its own observed date span, since different meters
-    # can have different install/removal dates in real trial data. 
+    # can have different install/removal dates in real trial data. Using a
+    # single dataset-wide span here would unfairly penalize a meter that is
+    # 100% complete over its own shorter window.
     per_meter_span_days = df.groupby("meter_id")["timestamp"].agg(
         lambda s: (s.max() - s.min()).days + 1
     )
@@ -245,7 +243,18 @@ def load_real_cer_dataset(
     min_completeness: float = 0.95,
     output_filepath: str = None,
 ) -> pd.DataFrame:
-    
+    """
+    Top-level orchestrator - drop-in replacement for
+    generate_raw_cer_dataset() once real ISSDA files are available.
+    Returns the same canonical meter_id/timestamp/kwh schema, so nothing
+    downstream (features.py etc) needs to change.
+
+    Usage once you have real files:
+        df_raw = load_real_cer_dataset(
+            meter_read_filepaths="data/raw/cer_real/File*.txt",
+            allocation_filepath="data/raw/cer_real/allocations.csv",
+        )
+    """
     df = load_cer_meter_reads(meter_read_filepaths, epoch_date=epoch_date)
     df = clean_cer_data(df, min_completeness=min_completeness)
 
