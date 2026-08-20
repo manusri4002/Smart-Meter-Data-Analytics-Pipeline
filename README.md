@@ -28,8 +28,6 @@ It combines four stages into one pipeline:
 ---
 ## Video
 
-**Microgrid EMS Dashboard** MILP/Stochastic MPC battery dispatch with Newton-Raphson voltage validation:
-![Microgrid EMS demo](assets/.gif)
 ```
 ```
 ## Project Structure
