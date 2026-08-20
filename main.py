@@ -1,9 +1,16 @@
 import argparse
 import os
+
 from src.anomaly import detect_meter_anomalies
 from src.features import extract_load_features
-from src.ingestion import generate_raw_cer_dataset, load_raw_data
+from src.ingestion import (
+    DEFAULT_TAMPERED_METER_IDS,
+    generate_raw_cer_dataset,
+    load_raw_data,
+)
 from src.segmentation import train_customer_clusters
+
+
 def run_pipeline(
     raw_data_path: str = "data/raw/cer_raw_data.csv",
     processed_output_path: str = "data/processed/cer_final_analytics.csv",
@@ -72,7 +79,7 @@ def run_pipeline(
     print("=" * 60)
 
     if inject_tamper_events:
-        tampered_ids = [1000, 1001]
+        tampered_ids = DEFAULT_TAMPERED_METER_IDS
         flagged_tampered = df_final[df_final["meter_id"].isin(tampered_ids)]["is_anomaly"].tolist()
         print(f"\n DEMO CHECK: tampered meters {tampered_ids} -> "
               f"flagged as anomalies: {flagged_tampered}")
@@ -103,4 +110,3 @@ if __name__ == "__main__":
         force_regenerate=args.force_regenerate,
         inject_tamper_events=args.inject_tamper_events,
     )
-    
