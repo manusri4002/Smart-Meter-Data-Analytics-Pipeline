@@ -6,7 +6,6 @@ from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 
 # Features used to cluster customers into load-profile archetypes.
-# Must match the columns produced by src/features.py's extract_load_features().
 CLUSTER_FEATURE_COLS = [
     "mean_kwh",
     "load_factor",
@@ -47,3 +46,4 @@ def train_customer_clusters(
     print(f"Models saved to directory: '{model_dir}/'")
 
     return df, kmeans, scaler
+
