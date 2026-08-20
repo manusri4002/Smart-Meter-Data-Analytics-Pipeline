@@ -3,22 +3,23 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+from main import run_pipeline
+from src.ingestion import DEFAULT_TAMPERED_METER_IDS as TAMPERED_DEMO_METER_IDS
+
 # Page Configuration
 st.set_page_config(
     page_title="Smart Meter Analytics Dashboard",
-    page_icon=" ",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-TAMPERED_DEMO_METER_IDS = [1000, 1001]  # must match ingestion.py's default n_tamper_events=2
 
-#1. LOAD PRE-COMPUTED PIPELINE OUTPUTS
+# 1. LOAD PRE-COMPUTED PIPELINE OUTPUTS
 @st.cache_data
 def load_pipeline_data():
     raw_df = pd.read_csv("data/raw/cer_raw_data.csv")
     raw_df["timestamp"] = pd.to_datetime(raw_df["timestamp"])
-
     analytics_df = pd.read_csv("data/processed/cer_final_analytics.csv")
     return raw_df, analytics_df
 
@@ -49,9 +50,7 @@ merged_df = raw_df.merge(
     analytics_df[["meter_id", "cluster", "is_anomaly"]], on="meter_id"
 )
 
-
-#SIDEBAR CONTROLS
-
+# SIDEBAR CONTROLS
 st.sidebar.title("Grid Analytics Panel")
 st.sidebar.markdown(
     "Irish CER Smart Metering Trial Dataset Processor for Load Profiling & Loss Detection."
@@ -68,9 +67,9 @@ st.sidebar.caption(
     f"{TAMPERED_DEMO_METER_IDS} (consumption drops to near-zero halfway through the window), "
     f"then checks whether the anomaly detector actually caught it."
 )
+
 if st.sidebar.button("Run pipeline WITH injected tamper event"):
     with st.spinner("Regenerating dataset with injected tamper event and re-running full pipeline..."):
-        from main import run_pipeline
         result_df = run_pipeline(
             num_meters=50, days=14,
             inject_tamper_events=True, force_regenerate=True,
@@ -86,13 +85,11 @@ if st.sidebar.button("Run pipeline WITH injected tamper event"):
     st.rerun()
 
 st.sidebar.divider()
-
 selected_cluster = st.sidebar.multiselect(
     "Filter by Customer Cluster",
     options=sorted(analytics_df["cluster"].unique()),
     default=sorted(analytics_df["cluster"].unique()),
 )
-
 show_anomalies_only = st.sidebar.checkbox("Show Flagged Anomalies Only", False)
 
 # Filter analytics data based on sidebar
@@ -100,7 +97,7 @@ filtered_df = analytics_df[analytics_df["cluster"].isin(selected_cluster)]
 if show_anomalies_only:
     filtered_df = filtered_df[filtered_df["is_anomaly"]]
 
-#HEADER & KPI CARDS
+# HEADER & KPI CARDS
 st.title("Smart Meter Data Analytics Dashboard")
 st.caption("End-to-End Grid Quality & Customer Load Profiling System")
 
@@ -132,7 +129,8 @@ col3.metric(
 col4.metric("Clustering Silhouette Score", f"{analytics_df['silhouette_score'].iloc[0]:.4f}")
 
 st.divider()
-#DASHBOARD TABS
+
+# DASHBOARD TABS
 tab1, tab2, tab3 = st.tabs(
     [
         "Customer Load Profiling",
@@ -144,12 +142,10 @@ tab1, tab2, tab3 = st.tabs(
 # TAB 1: CLUSTER PROFILING
 with tab1:
     st.subheader("24-Hour Diurnal Load Profile by Cluster")
-
     merged_df["hour"] = merged_df["timestamp"].dt.hour
     cluster_profiles = (
         merged_df.groupby(["cluster", "hour"])["kwh"].mean().reset_index()
     )
-
     fig_cluster = px.line(
         cluster_profiles,
         x="hour",
@@ -171,7 +167,6 @@ with tab1:
         st.dataframe(
             summary_table.style.highlight_max(axis=0), use_container_width=True
         )
-
     with col_b:
         st.markdown("##### Load Factor vs Mean Load")
         fig_scatter = px.scatter(
@@ -190,7 +185,6 @@ with tab1:
 # TAB 2: ANOMALY DETECTION
 with tab2:
     st.subheader("Flagged Meters (Suspected Bypass Theft or Faults)")
-
     anom_meters = analytics_df[analytics_df["is_anomaly"]]
     display_cols = ["meter_id", "cluster", "mean_kwh", "max_kwh", "load_factor", "night_ratio"]
     if "half_period_ratio" in anom_meters.columns:
@@ -202,9 +196,7 @@ with tab2:
             "Select Flagged Meter ID to Inspect Time Series:",
             anom_meters["meter_id"].tolist(),
         )
-
         meter_ts = merged_df[merged_df["meter_id"] == selected_anom_id]
-
         fig_anom = px.line(
             meter_ts,
             x="timestamp",
@@ -223,7 +215,6 @@ with tab2:
 # TAB 3: SINGLE METER DRILL-DOWN
 with tab3:
     st.subheader("Individual Meter Deep-Dive")
-
     meter_choice = st.selectbox(
         "Choose Meter ID:", analytics_df["meter_id"].tolist()
     )
@@ -239,7 +230,6 @@ with tab3:
     )
 
     single_ts = merged_df[merged_df["meter_id"] == meter_choice]
-
     fig_single = px.line(
         single_ts,
         x="timestamp",
@@ -247,4 +237,4 @@ with tab3:
         title=f"Historical Consumption Profile — Meter #{meter_choice}",
     )
     st.plotly_chart(fig_single, use_container_width=True)
-    
+
